@@ -1,0 +1,144 @@
+---
+title: "Proyecto"
+author: "Javier"
+date: "24 de septiembre de 2015"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. 
+
+First we download the two datasets. To do this, a function is created using the OOP method:
+
+```{r}
+downdata <- function(url, nastrings) { 
+    temp <- tempfile() 
+    download.file(url, temp, method = "libcurl") 
+    data <- read.csv(temp, na.strings = nastrings) 
+    unlink(temp) 
+    return(data) 
+}
+  
+trainurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv" 
+train <- downdata(trainurl, c("", "NA", "#DIV/0!")) 
+testurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv" 
+test <- downdata(testurl, c("", "NA", "#DIV/0!"))
+```
+
+The following function selects the variables that have a different value to NAS:
+
+```{r, echo=FALSE}
+  rm.na.cols <- function(x) { x[ , colSums( is.na(x) ) < nrow(x) ] }
+  train <- rm.na.cols(train)
+  test  <- rm.na.cols(test)
+```
+
+Now a function is created to remove entire NA columns,and apply it to both datasets. Then we make a function that removes any variables with missing NAs.
+The complete function you select the variables that contain no NA:
+
+```{r}
+ complete <- function(x) {x[,sapply(x, function(y) !any(is.na(y)))] }
+```
+
+
+```{r}
+incompl        <- function(x) {names( x[,sapply(x, function(y) any(is.na(y)))] ) }
+
+train.na.var    <- incompl(train)
+test.na.var    <- incompl(test)
+
+train <- complete(train)
+test <- complete(test)
+```
+
+We eliminate the first 7 train dataset variables:
+
+```{r}
+
+train<-train[,-c(1:7)]
+test<-test[,-c(1:7)]
+
+```
+
+Now  set the variable "classe"  to be a factor variable in both the training and test set. Then set the seed to 6633. Fit  a boosted predictor using the "gbm" method and a random forest predictor relating the factor variable y to the remaining variables. Fit these both with the train() command in the caret package.
+
+```{r}
+
+library(caret) 
+library(randomForest)
+  
+set.seed(6633)
+  
+gbmTrain <- train(classe ~ ., data = train,method = "gbm", trControl = trainControl(method = "cv"))
+                                          
+set.seed(6633)
+
+rfTrain <- train(classe ~ ., data = train, method = "rf", tuneGrid=data.frame(mtry=3), trControl = trainControl(method = "cv"))
+
+```
+
+Now we compare the results from the predition with the actual data:
+
+```{r}
+
+gbmTraining <- predict(gbmTrain, train)
+          
+print(confusionMatrix(gbmTraining, train$classe))
+                                           
+rfTraining <- predict(rfTrain, train)
+
+print(confusionMatrix(rfTraining, train$classe))
+
+```
+
+With the model applied through the random forest method it was obtained more accurate prediction:                                            
+                                           
+Method GBM -> Accuracy : 0.9719    
+
+Method RF -> Accuracy : 1      
+
+Finally, we see the variable predicted values of the test dataset:
+
+```{r}
+
+  rfTraining1 <- predict(rfTrain, test)
+                                           
+  rfTraining1
+                                        
+  answers <- rfTraining1
+                                           
+  pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+     filename = paste0("problem_id_",i,".txt")
+     write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+  }
+                                           
+ pml_write_files(answers)
+                      
+ answers
+
+```
+
+answers
+                                           
+[1] B A B A A E D B A A B C B A E E A B B B
+          
+Levels: A B C D E
+                                           
+                                          
+Dotchart of variable importance as measured by a Random Forest:
+
+```{r}
+ 
+plot( varImp(rfTrain) )
+
+```
+
+
+ 
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
